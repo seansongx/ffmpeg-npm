@@ -1,4 +1,28 @@
-# @seankit/ffmpeg 打包仓库
+# ffmpeg-npm
+
+[![@seankit/ffmpeg](https://img.shields.io/npm/v/@seankit/ffmpeg?label=%40seankit%2Fffmpeg)](https://www.npmjs.com/package/@seankit/ffmpeg)
+[![@seankit/ffprobe](https://img.shields.io/npm/v/@seankit/ffprobe?label=%40seankit%2Fffprobe)](https://www.npmjs.com/package/@seankit/ffprobe)
+
+Static FFmpeg and FFprobe binaries for Windows, macOS and Linux (x64 and arm64), published to npm as [`@seankit/ffmpeg`](https://www.npmjs.com/package/@seankit/ffmpeg) and [`@seankit/ffprobe`](https://www.npmjs.com/package/@seankit/ffprobe).
+
+```sh
+npm install @seankit/ffmpeg
+```
+
+```js
+const { path } = require('@seankit/ffmpeg'); // absolute path of the ffmpeg binary for this platform
+```
+
+- Only the binary for the current platform is installed, through optional dependencies.
+- `manifest.json` in the main package lists every platform's tarball URLs, size and SHA-256, for desktop apps (Electron, Tauri) that download FFmpeg at runtime.
+- Every tarball is also served by npmmirror, for fast downloads in mainland China.
+- Binaries are unmodified upstream GPL builds (gyan.dev for Windows, martin-riedl.de for macOS, BtbN for Linux), checked for nonfree components and required codecs before packaging.
+
+Usage details are in the [package README](https://www.npmjs.com/package/@seankit/ffmpeg). The rest of this file documents how the packages are built and released (in Chinese).
+
+---
+
+## 打包与发布说明
 
 把固定版本的上游 FFmpeg 静态构建重新打包为公用 npm 包，供 Node.js 项目直接安装，也供桌面应用在运行时按清单下载。npmmirror 自动同步后作国内源，npmjs 作备用源，两边是同一个文件。
 
@@ -50,7 +74,7 @@ martin-riedl.de 的 Linux 构建启用了 `--enable-nonfree --enable-decklink`�
 - `npm run plan`：查看要下载的上游文件，不联网。
 - `npm run pack`：下载并校验上游文件，生成 `dist/*.tgz`、`dist/ffmpeg.manifest.json`、`dist/ffprobe.manifest.json` 和 `dist/release.json`。可加 `-- --tool ffmpeg` 或 `-- --platform win32-x64` 只处理一部分；主包在该工具所有平台都生成后才会生成。
 - `npm login` 后 `node scripts/publish.mjs publish`：按顺序发布，发布的就是上一步算过哈希的文件。
-- `npx --yes cnpm sync <包名...>` 和 `node scripts/publish.mjs wait-mirror`：让 npmmirror 同步并等待完成。
+- `node scripts/publish.mjs sync` 和 `node scripts/publish.mjs wait-mirror`：让 npmmirror 同步并等待完成（同步任务排队太久时会自动重新提交）。
 - `npm run verify`：从 npmmirror 和 npmjs 分别下载每个 tarball 并核对。
 
 下载缓存在 `.cache/`，中间文件在 `.work/`，输出在 `dist/`，均不提交。

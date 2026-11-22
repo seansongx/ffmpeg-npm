@@ -1,6 +1,6 @@
 {
   "ffmpegVersion": "9.0.2",
-  "packageVersion": "9.0.0",
+  "packageVersion": "9.0.1",
   "scope": "@seankit",
   "repository": "https://github.com/xsong13/ffmpeg-npm",
   "tools": ["ffmpeg", "ffprobe"],

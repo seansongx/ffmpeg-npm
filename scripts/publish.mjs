@@ -2,6 +2,7 @@
 // 发布 dist/ 中 npm run pack 生成的 tarball，供 GitHub Actions 使用，也可在本机运行。
 //
 //   node scripts/publish.mjs publish        按 release.json 顺序发布（先平台包，后主包），已发布的版本跳过
+//   node scripts/publish.mjs sync           让 npmmirror 立即同步全部包
 //   node scripts/publish.mjs wait-mirror    等 npmmirror 能下载到全部 tarball，最多 30 分钟
 //
 // 发布需要 NODE_AUTH_TOKEN（GitHub Actions 中来自仓库密钥 NPM_TOKEN）。在 GitHub Actions 中会附带来源证明（provenance）。
@@ -56,14 +57,42 @@ function mirrorReady(url) {
   return result.status === 0;
 }
 
+// 调用 npmmirror 的同步接口（与 cnpm sync 相同），返回任务状态和日志地址。
+function requestSync(name) {
+  const result = spawnSync('curl', ['-fsS', '--retry', '3', '--max-time', '60', '-X', 'PUT', `https://registry-direct.npmmirror.com/-/package/${name}/syncs`], {
+    encoding: 'utf8',
+  });
+  try {
+    const task = JSON.parse(result.stdout);
+    return { ok: task.ok === true, state: task.state, log: task.id ? `https://registry.npmmirror.com/-/package/${name}/syncs/${task.id}/log` : null };
+  } catch {
+    return { ok: false, state: `请求失败（curl 退出码 ${result.status}）`, log: null };
+  }
+}
+
+async function commandSync() {
+  const release = await readRelease();
+  for (const item of release.tarballs) {
+    const task = requestSync(item.package);
+    console.log(`${task.ok ? '已提交' : '提交失败'} ${item.package}：${task.state}${task.log ? `  ${task.log}` : ''}`);
+  }
+}
+
+// 等 npmmirror 能下载全部 tarball；同步任务有时排队很久，每 5 分钟为仍缺的包重新提交一次。
 async function commandWaitMirror() {
   const release = await readRelease();
   const pending = new Map(release.tarballs.map((item) => [item.package, item.urls[0]]));
   const deadline = Date.now() + 30 * 60_000;
+  let nextResync = Date.now() + 5 * 60_000;
   while (pending.size) {
     for (const [name, url] of pending) if (mirrorReady(url)) pending.delete(name);
     if (!pending.size) break;
     if (Date.now() > deadline) throw new Error(`npmmirror 30 分钟内仍未同步：${[...pending.keys()].join('、')}`);
+    if (Date.now() > nextResync) {
+      for (const name of pending.keys()) requestSync(name);
+      console.log(`重新提交同步：${[...pending.keys()].join('、')}`);
+      nextResync = Date.now() + 5 * 60_000;
+    }
     console.log(`等待 npmmirror 同步：还剩 ${pending.size} 个包`);
     await sleep(30_000);
   }
@@ -73,8 +102,9 @@ async function commandWaitMirror() {
 try {
   const command = process.argv[2];
   if (command === 'publish') await commandPublish();
+  else if (command === 'sync') await commandSync();
   else if (command === 'wait-mirror') await commandWaitMirror();
-  else console.log('用法：node scripts/publish.mjs <publish|wait-mirror>');
+  else console.log('用法：node scripts/publish.mjs <publish|sync|wait-mirror>');
 } catch (error) {
   console.error(`\n错误：${error.message}`);
   process.exitCode = 1;

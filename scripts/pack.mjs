@@ -151,7 +151,11 @@ async function packTarball(files, name) {
 
 function packageJson(fields) {
   const base = { ...fields };
-  if (config.repository) base.repository = { type: 'git', url: `git+${config.repository}.git` };
+  if (config.repository) {
+    base.homepage = `${config.repository}#readme`;
+    base.bugs = { url: `${config.repository}/issues` };
+    base.repository = { type: 'git', url: `git+${config.repository}.git` };
+  }
   base.publishConfig = { access: 'public' };
   return json(base);
 }
@@ -202,7 +206,7 @@ async function packPlatform(tool, platform) {
     packageJson({
       name,
       version: config.packageVersion,
-      description: `Static ${tool} binary from FFmpeg ${config.ffmpegVersion} for ${platform}`,
+      description: `Platform package of ${packageName(tool)}: static ${tool} binary (FFmpeg ${config.ffmpegVersion}) for ${platform}. Install ${packageName(tool)} instead.`,
       license,
       os: [spec.os],
       cpu: spec.cpu,
@@ -242,26 +246,58 @@ async function packPlatform(tool, platform) {
 
 function mainReadme(tool, manifest, license) {
   const name = packageName(tool);
+  const sibling = packageName(tool === 'ffmpeg' ? 'ffprobe' : 'ffmpeg');
+  const checkedLibs = config.requiredConfigure.filter((flag) => flag.startsWith('--enable-lib')).map((flag) => flag.slice('--enable-'.length)).join(' and ');
   const rows = Object.entries(manifest.platforms)
-    .map(([platform, entry]) => `| \`${platform}\` | \`${entry.package}\` | ${mib(entry.size)} |`)
-    .concat(Object.entries(manifest.aliases).map(([alias, target]) => `| \`${alias}\` | uses \`${target}\` | — |`))
+    .map(([platform, entry]) => `| \`${platform}\` | [\`${entry.package}\`](https://www.npmjs.com/package/${entry.package}) | ${mib(entry.size)} |`)
+    .concat(Object.entries(manifest.aliases).map(([alias, target]) => `| \`${alias}\` | uses \`${target}\` through x64 emulation | — |`))
     .join('\n');
   return `# ${name}
 
-Static \`${tool}\` binaries from FFmpeg ${config.ffmpegVersion} for Windows, macOS and Linux, plus a manifest for apps that download the binary at runtime.
+Static \`${tool}\` binaries from FFmpeg ${config.ffmpegVersion} for Windows, macOS and Linux, distributed through npm.
 
-## Use from Node.js
+- **Current FFmpeg**: ${config.ffmpegVersion}, GPL builds; every platform is checked for ${checkedLibs} when packaging.
+- **x64 and arm64**: Windows x64, macOS on Apple Silicon and Intel, Linux x64 and arm64. Windows on ARM runs the x64 build.
+- **Only your platform is downloaded**: each platform lives in its own package, installed through optional dependencies.
+- **Built for runtime downloads**: \`manifest.json\` lists every platform's tarball URLs, size and SHA-256, so Electron, Tauri and other desktop apps can fetch and verify FFmpeg on first launch instead of bundling it.
+- **Fast in mainland China**: every tarball is also served by [npmmirror](https://npmmirror.com) with identical content.
+- **Unmodified upstream binaries**: each platform package records where its binary came from and how to get the matching source code. macOS binaries keep their upstream code signature.
+
+Need the other tool? See [${sibling}](https://www.npmjs.com/package/${sibling}).
+
+## Install
 
 \`\`\`sh
 npm install ${name}
 \`\`\`
 
+## Use from Node.js
+
 \`\`\`js
+const { execFileSync } = require('node:child_process');
 const { path } = require('${name}');
 // or: import { path } from '${name}';
+
+console.log(execFileSync(path, ['-version']).toString());
 \`\`\`
 
-Only the package for the current platform is installed, through optional dependencies. \`path\` is \`null\` on unsupported platforms or when optional dependencies were skipped (for example \`npm install --omit=optional\`).
+\`path\` is \`null\` on unsupported platforms or when optional dependencies were skipped (for example \`npm install --omit=optional\`). \`version\` gives the FFmpeg version, and \`platformKey()\` the manifest key for the current platform.
+
+In Electron, unpack the platform package from the asar archive (for example \`asarUnpack: ["node_modules/@seankit/${tool}-*/**"]\` in electron-builder) and replace \`app.asar\` with \`app.asar.unpacked\` in the path.
+
+## Download at runtime
+
+\`\`\`js
+const manifest = require('${name}/manifest.json');
+const key = \`\${process.platform}-\${process.arch}\`;
+const entry = manifest.platforms[manifest.aliases[key] ?? key];
+
+entry.urls;   // tarball URLs, npmmirror first, then npmjs; all serve the same file
+entry.sha256; // verify the downloaded tarball before extracting
+entry.binary; // path of the binary inside the package; inside the tarball it is under "package/"
+\`\`\`
+
+The manifest also lists \`size\`, \`binarySha256\` and the matching Rust target triples. On macOS and Linux, set the executable bit after extracting if your extractor drops it.
 
 ## Platforms
 
@@ -269,15 +305,13 @@ Only the package for the current platform is installed, through optional depende
 | --- | --- | --- |
 ${rows}
 
-Windows on ARM runs the x64 build through emulation.
+## Versioning
 
-## Download at runtime
-
-\`manifest.json\` (also available as \`require('${name}/manifest.json')\`) lists, for each platform, the tarball URLs (npmmirror first, then npmjs; every URL serves the same file), size, SHA-256, and the binary path. Files in the tarball sit under \`package/\`, so the binary is at \`package/<binary>\`. On macOS and Linux, set the executable bit after extracting if your extractor drops it.
+The first two parts of the npm version follow the FFmpeg major and minor version; the third part increases with every release of these packages, including repackaging the same FFmpeg version. The exact FFmpeg version is in \`version\` and in \`manifest.json\`.
 
 ## License
 
-The binaries are ${license} builds and include libx264 and libmp3lame. Each platform package contains the license text, the upstream build details in \`BUILDINFO.json\`, and a link to the matching FFmpeg source code.
+The binaries are ${license} builds. Each platform package contains the license text, the upstream build details in \`BUILDINFO.json\`, and a link to the matching FFmpeg source code. Packaging scripts: ${config.repository ?? 'see the repository'}
 `;
 }
 
@@ -299,9 +333,29 @@ async function packMain(tool, manifest) {
     packageJson({
       name,
       version: config.packageVersion,
-      description: `Static ${tool} binaries from FFmpeg ${config.ffmpegVersion} for Windows, macOS and Linux, with a download manifest`,
+      description: `Static ${tool} ${config.ffmpegVersion} binaries for Windows, macOS and Linux (x64 and arm64), installed per platform, with a SHA-256 download manifest and npmmirror support`,
       license: licenses[0],
-      keywords: [tool, 'ffmpeg', 'static', 'binary', 'prebuilt'],
+      keywords: [
+        ...new Set([
+          tool,
+          'ffmpeg',
+          `${tool}-static`,
+          `${tool}-binary`,
+          'static',
+          'binary',
+          'binaries',
+          'prebuilt',
+          'cross-platform',
+          'windows',
+          'macos',
+          'linux',
+          'arm64',
+          'apple-silicon',
+          'electron',
+          'tauri',
+          'npmmirror',
+        ]),
+      ],
       main: 'index.js',
       types: 'index.d.ts',
       exports: {
@@ -361,10 +415,10 @@ async function commandPack(options) {
   await writeFile(releasePath, json(release));
 
   console.log(`\n清单：${rel(releasePath)}`);
-  console.log('\n发布（先 npm login；先发平台包，再发主包）：');
-  for (const item of release.tarballs) console.log(`  npm publish "${rel(join(distDir, item.file))}" --access public`);
-  console.log('\n发布后让 npmmirror 立即同步：');
-  console.log(`  npx --yes cnpm sync ${release.tarballs.map((item) => item.package).join(' ')}`);
+  console.log('\n发布（先 npm login；按顺序先发平台包、再发主包，已发布的跳过）：');
+  console.log('  node scripts/publish.mjs publish');
+  console.log('\n发布后让 npmmirror 立即同步并等待完成：');
+  console.log('  node scripts/publish.mjs sync && node scripts/publish.mjs wait-mirror');
   console.log('\n同步后核对两个源：');
   console.log('  npm run verify');
 }

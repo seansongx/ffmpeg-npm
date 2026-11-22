@@ -109,7 +109,7 @@ jobs:
 
       - name: 让 npmmirror 立即同步
         if: inputs.publish
-        run: npx --yes cnpm sync $(node -p 'require("./dist/release.json").tarballs.map((t) => t.package).join(" ")')
+        run: node scripts/publish.mjs sync
 
       - name: 等待 npmmirror 同步完成
         if: inputs.publish
