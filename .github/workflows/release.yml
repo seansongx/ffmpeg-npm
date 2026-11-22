@@ -1,7 +1,7 @@
 name: Release
 
 # 手动运行：下载上游构建、打包，并可选择发布到 npm。
-# 不勾选“发布”时只打包，生成的 tarball 可在本次运行的产物 npm-packages 中下载检查。
+# 不勾选“发布”时只打包；运行摘要列出每个包的大小和 SHA-256，清单文件保存在本次运行的产物 npm-manifests 中。
 on:
   workflow_dispatch:
     inputs:
@@ -71,9 +71,9 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: npm-packages
-          path: dist/
-          retention-days: 14
+          name: npm-manifests
+          path: dist/*.json
+          retention-days: 30
 
       # 用刚生成的 tarball 安装主包和 Linux x64 平台包，通过主包取得路径并运行，确认可执行权限和入口都正确。
       - name: 冒烟测试（Linux x64）

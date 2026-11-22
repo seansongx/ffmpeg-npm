@@ -38,7 +38,7 @@ martin-riedl.de 的 Linux 构建启用了 `--enable-nonfree --enable-decklink`�
 在 GitHub Actions 中发布：上游文件和 npm 都在境外，在 GitHub 的服务器上下载和上传快得多。
 
 1. 首次使用前，在 npmjs.com 为 `@seankit` 创建有发布权限的访问令牌，添加为仓库密钥 `NPM_TOKEN`（Settings → Secrets and variables → Actions）。
-2. 在 Actions 页面运行 **Release**，先不勾选“发布到 npm”：工作流会跑测试、下载并校验上游文件、生成 tarball。运行摘要列出每个包的大小和 SHA-256，产物 `npm-packages` 可下载检查。
+2. 在 Actions 页面运行 **Release**，先不勾选“发布到 npm”：工作流会跑测试、下载并校验上游文件、生成 tarball。运行摘要列出每个包的大小和 SHA-256；清单文件（`release.json` 和两个 `manifest.json`）保存为产物 `npm-manifests`，tarball 本身不保留。
 3. 再次运行 **Release** 并勾选“发布到 npm”：按 `release.json` 的顺序先发平台包、再发主包（已发布的版本自动跳过），附带来源证明（provenance）；随后让 npmmirror 立即同步，等同步完成后从 npmmirror 和 npmjs 分别下载每个 tarball，核对与 `release.json` 一致。
 
 每次推送到 `main` 时，**Test** 工作流会在 Windows、macOS 和 Linux 上运行测试。
