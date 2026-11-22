@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Repackages pinned upstream FFmpeg builds as the @seankit/ffmpeg and @seankit/ffprobe npm packages",
   "scripts": {
+    "bump": "node scripts/bump.mjs",
     "plan": "node scripts/pack.mjs plan",
     "pack": "node scripts/pack.mjs pack",
     "verify": "node scripts/pack.mjs verify",

@@ -12,9 +12,9 @@
 
 平台：`win32-x64`、`darwin-arm64`、`darwin-x64`、`linux-x64`、`linux-arm64`。Windows on ARM 通过 x64 模拟运行，`win32-x64` 包同时声明 `x64` 和 `arm64`，清单中 `aliases` 把 `win32-arm64` 指向它。
 
-## 当前版本
+## 上游来源
 
-FFmpeg 9.1（2026-11-20 发布），npm 包版本 `9.1.0`，GPL 构建（含 libx264、libmp3lame）。Windows 取自 gyan.dev essentials，macOS 和 Linux 取自 ffmpeg.martin-riedl.de。上游地址、大小和 SHA-256 见 [sources.json](sources.json)。
+当前的 FFmpeg 版本、npm 包版本，以及各平台上游地址、大小和 SHA-256 都在 [sources.json](sources.json)。均为 GPL 构建（含 libx264、libmp3lame）：Windows 取自 gyan.dev essentials，macOS 和 Linux 取自 ffmpeg.martin-riedl.de。
 
 - 可执行文件不做修改，macOS 上游签名保持有效。
 - 打包前从可执行文件中读出许可证和编译选项，缺少 `requiredConfigure` 中的选项或含 nonfree 组件时停止。
@@ -39,6 +39,13 @@ FFmpeg 9.1（2026-11-20 发布），npm 包版本 `9.1.0`，GPL 构建（含 lib
 
 ## 升级 FFmpeg
 
-更新 `sources.json` 的 `ffmpegVersion`、`packageVersion`、`licenseBaseUrl`、`sourceTarball` 和各平台上游地址、大小、SHA-256，再按上面的流程发布。
+```sh
+npm run bump -- 9.1.1 --dry-run   # 先看会改成什么
+npm run bump -- 9.1.1             # 写入 sources.json
+```
+
+脚本沿用每个平台现有的上游来源，找到指定版本的文件，读取上游发布的 SHA-256 和文件大小，同时更新 `ffmpegVersion`、`packageVersion`、`sourceTarball` 和 `licenseBaseUrl`。npm 包版本按上面的规则自动递增；只重新打包同一个 FFmpeg 版本，或要回退到更低版本时，用 `--package-version` 指定。某个上游还没发布该版本时脚本会停止，不写文件。
+
+检查 `git diff sources.json` 后按上面的发布流程打包、发布、核对，最后提交 `sources.json`。用到这些包的应用还需要更新内置的下载地址和 SHA-256，从新主包的 `manifest.json` 中取。
 
 martin-riedl.de 从 2027 年 1 月起不再发布 macOS Intel 正式版，之后升级 `darwin-x64` 需要换用 evermeet.cx 等来源。BtbN 提供 9.1 分支的 Windows arm64 构建后，可以增加原生的 `win32-arm64` 包并去掉别名。

@@ -66,6 +66,46 @@ export function extractConfiguration(text) {
   return configuration.trim();
 }
 
+// ---------- 升级版本用 ----------
+
+// 读取 .sha256 文件：可能只有哈希，也可能是 "<哈希>  文件名"。
+export function parseSha256(text) {
+  const match = text.trim().match(/^([0-9a-f]{64})(?:\s|$)/i);
+  if (!match) throw new Error(`无法解析 SHA-256：${text.trim().slice(0, 80)}`);
+  return match[1].toLowerCase();
+}
+
+// npm 版本前两位跟随 FFmpeg 主、次版本，第三位只增不减。
+export function nextPackageVersion(currentPackage, nextFfmpeg) {
+  const [major, minor] = nextFfmpeg.split('.').map(Number);
+  const [currentMajor, currentMinor, currentPatch] = currentPackage.split('.').map(Number);
+  if (major === currentMajor && minor === currentMinor) return `${major}.${minor}.${currentPatch + 1}`;
+  if (major < currentMajor || (major === currentMajor && minor < currentMinor)) {
+    throw new Error(`FFmpeg ${nextFfmpeg} 低于当前包版本 ${currentPackage}，请用 --package-version 指定一个更高的版本号`);
+  }
+  return `${major}.${minor}.0`;
+}
+
+// 从 martin-riedl.de 的发布历史页面中找出某版本最新一次构建的编号（同一版本可能重新构建过）。
+export function findRiedlRelease(html, os, arch, version) {
+  const pattern = new RegExp(`/info/detail/${os}/${arch}/(\\d+)_${version.replaceAll('.', '\\.')}(?=["'<\\s])`, 'g');
+  const epochs = [...html.matchAll(pattern)].map((match) => Number(match[1]));
+  return epochs.length ? Math.max(...epochs) : null;
+}
+
+// 两格缩进的 JSON；只含基本类型、且一行放得下的数组写成一行，与手写的 sources.json 格式一致。
+export function formatJson(value, width = 80) {
+  const text = JSON.stringify(value, null, 2).replace(/^( *)("[^"\n]*": )?\[\n([\s\S]*?)\n\1\]/gm, (whole, indent, key = '', body) => {
+    const items = body.split(',\n').map((item) => item.trim());
+    if (items.some((item) => item.startsWith('{') || item.startsWith('['))) return whole;
+    const line = `${indent}${key}[${items.join(', ')}]`;
+    return line.length + 1 <= width ? line : whole;
+  });
+  return `${text}\n`;
+}
+
+// ---------- tarball ----------
+
 export function tarHeader(name, size, mode) {
   const header = Buffer.alloc(512);
   const put = (value, offset, length) => header.write(value, offset, length, 'ascii');
