@@ -75,6 +75,32 @@ jobs:
           path: dist/
           retention-days: 14
 
+      # 用刚生成的 tarball 安装主包和 Linux x64 平台包，通过主包取得路径并运行，确认可执行权限和入口都正确。
+      - name: 冒烟测试（Linux x64）
+        if: inputs.platform == 'all' || inputs.platform == 'linux-x64'
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./sources.json').packageVersion")
+          work=$(mktemp -d)
+          for tool in ffmpeg ffprobe; do
+            main="$PWD/dist/seankit-$tool-$version.tgz"
+            platform="$PWD/dist/seankit-$tool-linux-x64-$version.tgz"
+            if [ ! -f "$main" ] || [ ! -f "$platform" ]; then continue; fi
+            mkdir -p "$work/$tool"
+            (
+              cd "$work/$tool"
+              npm init -y > /dev/null
+              npm install --omit=optional --no-audit --no-fund "$platform" "$main"
+              TOOL="$tool" node -e '
+                const { execFileSync } = require("node:child_process");
+                const { path, version } = require(`@seankit/${process.env.TOOL}`);
+                if (!path) throw new Error("path 为空");
+                console.log(`${path}（FFmpeg ${version}）`);
+                console.log(execFileSync(path, ["-version"]).toString().split("\n")[0]);
+              '
+            )
+          done
+
       - name: 发布到 npm
         if: inputs.publish
         env:
