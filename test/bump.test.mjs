@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
-import { findRiedlRelease, formatJson, nextPackageVersion, parseSha256 } from '../scripts/lib.mjs';
+import {
+  btbnMonthEndTags,
+  findBtbnAsset,
+  findRiedlRelease,
+  formatJson,
+  nextPackageVersion,
+  parseBtbnAsset,
+  parseSha256,
+} from '../scripts/lib.mjs';
 
 const HASH = '1f66e9a690a7f1c9e60b012379f8869c11818d1797f45b21dbb2f2564ba61ae1';
 
@@ -52,6 +60,47 @@ describe('findRiedlRelease', () => {
     assert.equal(findRiedlRelease(html, 'macos', 'arm64', '9.2'), null);
     assert.equal(findRiedlRelease(html, 'macos', 'amd64', '9.1'), null);
     assert.equal(findRiedlRelease(html, 'macos', 'arm64', '9'), null);
+  });
+});
+
+describe('BtbN builds', () => {
+  it('parses branch and tag asset names', () => {
+    assert.deepEqual(parseBtbnAsset('ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-gpl-9.0.tar.xz'), {
+      version: '9.0.2',
+      commits: 39,
+      commit: '7adfbe40dc',
+      target: 'linux64',
+      variant: 'gpl',
+      branch: '9.0',
+      ext: 'tar.xz',
+    });
+    assert.equal(parseBtbnAsset('ffmpeg-n9.0.2-winarm64-gpl-shared-9.0.zip').variant, 'gpl-shared');
+    assert.equal(parseBtbnAsset('ffmpeg-master-latest-linux64-gpl.tar.xz'), null);
+  });
+
+  it('keeps only the last build of each finished month, newest first', () => {
+    const tags = [
+      'autobuild-2026-11-22-12-36',
+      'autobuild-2026-11-21-12-37',
+      'autobuild-2026-10-31-12-59',
+      'autobuild-2026-10-30-12-50',
+      'autobuild-2026-09-29-12-40',
+      'latest',
+    ];
+    assert.deepEqual(btbnMonthEndTags(tags), ['autobuild-2026-10-31-12-59', 'autobuild-2026-09-29-12-40']);
+  });
+
+  it('finds the matching asset in checksums.sha256', () => {
+    const checksums = [
+      `${'a'.repeat(64)}  ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-lgpl-9.0.tar.xz`,
+      `${'b'.repeat(64)}  ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-gpl-9.0.tar.xz`,
+      `${'c'.repeat(64)}  ffmpeg-n9.0.2-39-g7adfbe40dc-linuxarm64-gpl-9.0.tar.xz`,
+      `${'d'.repeat(64)}  ffmpeg-N-129219-g359c825152-linux64-gpl.tar.xz`,
+    ].join('\n');
+    const wanted = { target: 'linux64', variant: 'gpl', ext: 'tar.xz' };
+    assert.equal(findBtbnAsset(checksums, '9.0.2', wanted).sha256, 'b'.repeat(64));
+    assert.equal(findBtbnAsset(checksums, '9.0.2', { ...wanted, target: 'linuxarm64' }).sha256, 'c'.repeat(64));
+    assert.equal(findBtbnAsset(checksums, '9.1', wanted), null);
   });
 });
 

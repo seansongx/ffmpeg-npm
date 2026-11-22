@@ -165,11 +165,11 @@ function platformReadme(tool, platform, name, upstream, license) {
 Static ${tool} binary from FFmpeg ${config.ffmpegVersion} for \`${platform}\`. Install [${main}](https://www.npmjs.com/package/${main}) instead of this package; it selects the right platform automatically.
 
 - Binary: \`bin/${exeName(tool, platform)}\`, unmodified from the upstream build
-- Upstream: ${upstream.provider}, ${upstream.url}
+- Upstream: ${upstream.provider}, ${upstream.url}${upstream.version ? ` (FFmpeg ${upstream.version})` : ''}
 - Upstream SHA-256: \`${upstream.sha256}\`
 - Build information: ${upstream.buildInfo}
 - License: ${license}, see LICENSE
-- FFmpeg source code: ${config.sourceTarball}
+- FFmpeg source code: ${upstream.sourceCode ?? config.sourceTarball}
 `;
 }
 
@@ -211,7 +211,7 @@ async function packPlatform(tool, platform) {
   );
   await writeFile(
     join(pkgDir, 'BUILDINFO.json'),
-    json({ tool, ffmpegVersion: config.ffmpegVersion, platform, license, upstream, binary: { path: binaryPath, ...binaryInfo }, configuration, sourceCode: config.sourceTarball }),
+    json({ tool, ffmpegVersion: config.ffmpegVersion, platform, license, upstream, binary: { path: binaryPath, ...binaryInfo }, configuration, sourceCode: upstream.sourceCode ?? config.sourceTarball }),
   );
   await writeFile(join(pkgDir, 'README.md'), platformReadme(tool, platform, name, upstream, license));
 
@@ -277,7 +277,7 @@ Windows on ARM runs the x64 build through emulation.
 
 ## License
 
-The binaries are ${license} builds and include libx264 and libmp3lame. Each platform package contains the license text, the upstream build details, and a link to the FFmpeg source code: ${config.sourceTarball}
+The binaries are ${license} builds and include libx264 and libmp3lame. Each platform package contains the license text, the upstream build details in \`BUILDINFO.json\`, and a link to the matching FFmpeg source code.
 `;
 }
 

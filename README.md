@@ -14,7 +14,15 @@
 
 ## 上游来源
 
-当前的 FFmpeg 版本、npm 包版本，以及各平台上游地址、大小和 SHA-256 都在 [sources.json](sources.json)。均为 GPL 构建（含 libx264、libmp3lame）：Windows 取自 gyan.dev essentials，macOS 和 Linux 取自 ffmpeg.martin-riedl.de。
+当前的 FFmpeg 版本、npm 包版本，以及各平台上游地址、大小和 SHA-256 都在 [sources.json](sources.json)。均为 GPL 构建（含 libx264、libmp3lame）：
+
+| 平台 | 上游 | 说明 |
+| --- | --- | --- |
+| Windows | gyan.dev essentials | 按 FFmpeg 正式版本发布 |
+| macOS | ffmpeg.martin-riedl.de | 按 FFmpeg 正式版本发布，二进制已签名 |
+| Linux | BtbN/FFmpeg-Builds | 从 FFmpeg 发布分支构建，版本形如 `n9.0.2-39-g7adfbe40dc`（9.0.2 之后又合入 39 个修复）；只用每月最后一次构建，它们保留两年 |
+
+martin-riedl.de 的 Linux 构建启用了 `--enable-nonfree --enable-decklink`，不能再分发，所以 Linux 改用 BtbN。上游带 nonfree 组件时打包脚本会停止。
 
 - 可执行文件不做修改，macOS 上游签名保持有效。
 - 打包前从可执行文件中读出许可证和编译选项，缺少 `requiredConfigure` 中的选项或含 nonfree 组件时停止。
@@ -58,4 +66,4 @@ npm run bump -- 9.1.1             # 写入 sources.json
 
 检查 `git diff sources.json` 后按上面的发布流程打包、发布、核对，最后提交 `sources.json`。用到这些包的应用还需要更新内置的下载地址和 SHA-256，从新主包的 `manifest.json` 中取。
 
-martin-riedl.de 从 2027 年 1 月起不再发布 macOS Intel 正式版，之后升级 `darwin-x64` 需要换用 evermeet.cx 等来源。BtbN 提供 9.1 分支的 Windows arm64 构建后，可以增加原生的 `win32-arm64` 包并去掉别名。
+Linux 只有在 BtbN 的某个月末构建包含该版本后才能升级；例如 BtbN 加入 9.1 分支后，要等到那个月结束。martin-riedl.de 从 2027 年 1 月起不再发布 macOS Intel 正式版，之后升级 `darwin-x64` 需要换用 evermeet.cx 等来源。BtbN 也提供 Windows arm64 构建，需要时可以增加原生的 `win32-arm64` 包并去掉别名。

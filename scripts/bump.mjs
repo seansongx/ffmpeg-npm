@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findRiedlRelease, formatJson, nextPackageVersion, parseSha256 } from './lib.mjs';
+import { btbnMonthEndTags, findBtbnAsset, findRiedlRelease, formatJson, nextPackageVersion, parseBtbnAsset, parseSha256 } from './lib.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sourcesPath = join(root, 'sources.json');
@@ -53,22 +53,50 @@ function fetchSize(url) {
   return lengths.at(-1);
 }
 
-// 每个上游来源如何找到指定版本的文件。新增来源时在这里加一项。
+// 每个上游来源如何找到指定版本的文件，返回 { url }，可附带 sha256、sourceCode、version。
+// 没给 sha256 时读取 url + ".sha256"；文件大小统一用 HEAD 请求获取。新增来源时在这里加一项。
 const resolvers = {
   'gyan.dev'(upstream, version) {
     const match = upstream.url.match(/\/packages\/ffmpeg-[^/]+?-([a-z]+_build\.(?:7z|zip))$/);
     if (!match) throw new Error(`无法识别 gyan.dev 地址：${upstream.url}`);
-    return `https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-${version}-${match[1]}`;
+    return { url: `https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-${version}-${match[1]}` };
   },
-  'ffmpeg.martin-riedl.de'(upstream, version, pages) {
+  'ffmpeg.martin-riedl.de'(upstream, version, cache) {
     const match = upstream.url.match(/\/download\/([a-z]+)\/([a-z0-9]+)\/\d+_[^/]+\/([^/]+)$/);
     if (!match) throw new Error(`无法识别 martin-riedl.de 地址：${upstream.url}`);
     const [, os, arch, file] = match;
-    const key = `${os}/${arch}`;
-    if (!pages.has(key)) pages.set(key, fetchText(`https://ffmpeg.martin-riedl.de/info/history/${key}/release`));
-    const epoch = findRiedlRelease(pages.get(key), os, arch, version);
-    if (!epoch) throw new Error(`martin-riedl.de 没有 ${key} 的 ${version} 正式版，需要等它发布或换用其他上游`);
-    return `https://ffmpeg.martin-riedl.de/download/${key}/${epoch}_${version}/${file}`;
+    const key = `riedl:${os}/${arch}`;
+    if (!cache.has(key)) cache.set(key, fetchText(`https://ffmpeg.martin-riedl.de/info/history/${os}/${arch}/release`));
+    const epoch = findRiedlRelease(cache.get(key), os, arch, version);
+    if (!epoch) throw new Error(`martin-riedl.de 没有 ${os}/${arch} 的 ${version} 正式版，需要等它发布或换用其他上游`);
+    return { url: `https://ffmpeg.martin-riedl.de/download/${os}/${arch}/${epoch}_${version}/${file}` };
+  },
+  // BtbN 从 FFmpeg 发布分支构建，版本形如 n9.0.2-39-g7adfbe40dc（9.0.2 之后又合入 39 个提交）。
+  'BtbN/FFmpeg-Builds'(upstream, version, cache) {
+    const current = parseBtbnAsset(upstream.url.split('/').pop());
+    if (!current) throw new Error(`无法识别 BtbN 地址：${upstream.url}`);
+    if (!cache.has('btbn:tags')) {
+      const result = spawnSync('git', ['ls-remote', '--tags', 'https://github.com/BtbN/FFmpeg-Builds.git'], { encoding: 'utf8' });
+      if (result.status !== 0) throw new Error('无法读取 BtbN/FFmpeg-Builds 的标签');
+      const tags = result.stdout.split('\n').map((line) => line.split('refs/tags/')[1]?.replace(/\^\{\}$/, '')).filter(Boolean);
+      cache.set('btbn:tags', btbnMonthEndTags(tags));
+    }
+    for (const tag of cache.get('btbn:tags')) {
+      const key = `btbn:${tag}`;
+      if (!cache.has(key)) {
+        const result = curl([`https://github.com/BtbN/FFmpeg-Builds/releases/download/${tag}/checksums.sha256`]);
+        cache.set(key, result.status === 0 ? result.stdout : '');
+      }
+      const asset = findBtbnAsset(cache.get(key), version, current);
+      if (!asset) continue;
+      return {
+        url: `https://github.com/BtbN/FFmpeg-Builds/releases/download/${tag}/${asset.name}`,
+        sha256: asset.sha256,
+        version: `n${asset.version}${asset.commit ? `-${asset.commits}-g${asset.commit}` : ''}`,
+        sourceCode: asset.commit ? `https://github.com/FFmpeg/FFmpeg/tree/${asset.commit}` : `https://github.com/FFmpeg/FFmpeg/tree/n${asset.version}`,
+      };
+    }
+    throw new Error(`BtbN 的月末构建中没有 ${current.target} ${current.variant} 的 FFmpeg ${version}，需要等它发布或换用其他上游`);
   },
 };
 
@@ -94,17 +122,21 @@ async function main() {
   console.log(`源代码 ${sourceTarball}`);
   console.log(`许可证 ${licenseBaseUrl}\n`);
 
-  const pages = new Map();
+  const cache = new Map();
   const resolved = new Map();
   for (const [platform, spec] of Object.entries(config.platforms)) {
     for (const [tool, upstream] of Object.entries(spec.upstream)) {
       const resolver = resolvers[upstream.provider];
       if (!resolver) throw new Error(`${platform} ${tool} 的上游 ${upstream.provider} 不支持自动升级，请手动修改 sources.json`);
-      const url = resolver(upstream, version, pages);
-      if (!resolved.has(url)) resolved.set(url, { sha256: parseSha256(fetchText(`${url}.sha256`)), size: fetchSize(url) });
-      spec.upstream[tool] = { ...upstream, url, ...resolved.get(url) };
-      console.log(`${`${platform} ${tool}`.padEnd(22)} ${url}`);
-      console.log(`${''.padEnd(22)} ${resolved.get(url).sha256}  ${(resolved.get(url).size / 1024 / 1024).toFixed(1)} MiB`);
+      const result = resolver(upstream, version, cache);
+      if (!resolved.has(result.url)) {
+        resolved.set(result.url, { sha256: result.sha256 ?? parseSha256(fetchText(`${result.url}.sha256`)), size: fetchSize(result.url) });
+      }
+      const next = { ...upstream, ...result, ...resolved.get(result.url) };
+      for (const field of ['sourceCode', 'version']) if (!(field in result)) delete next[field];
+      spec.upstream[tool] = next;
+      console.log(`${`${platform} ${tool}`.padEnd(22)} ${next.url}`);
+      console.log(`${''.padEnd(22)} ${next.sha256}  ${(next.size / 1024 / 1024).toFixed(1)} MiB${next.version ? `  ${next.version}` : ''}`);
     }
   }
 

@@ -93,6 +93,42 @@ export function findRiedlRelease(html, os, arch, version) {
   return epochs.length ? Math.max(...epochs) : null;
 }
 
+// ---------- BtbN/FFmpeg-Builds ----------
+// BtbN 每天构建一次，只保留最近 14 天和每月最后一次（保留两年）。固定版本时只用每月最后一次构建。
+
+const BTBN_ASSET = /^ffmpeg-n([0-9.]+)(?:-(\d+)-g([0-9a-f]+))?-(linux64|linuxarm64|win64|winarm64)-([a-z]+(?:-[a-z]+)*)-(\d+\.\d+)\.(tar\.xz|zip)$/;
+
+// 解析资产文件名，如 ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-gpl-9.0.tar.xz。
+export function parseBtbnAsset(name) {
+  const match = name.match(BTBN_ASSET);
+  if (!match) return null;
+  const [, version, commits, commit, target, variant, branch, ext] = match;
+  return { version, commits: commits ? Number(commits) : 0, commit: commit ?? null, target, variant, branch, ext };
+}
+
+// 从 autobuild 标签中取出每个月最后一次构建，去掉尚未结束的最新月份，按时间从新到旧排列。
+export function btbnMonthEndTags(tags) {
+  const lastOfMonth = new Map();
+  for (const tag of tags) {
+    const match = tag.match(/^autobuild-(\d{4}-\d{2})-\d{2}-\d{2}-\d{2}$/);
+    if (match && (!lastOfMonth.has(match[1]) || tag > lastOfMonth.get(match[1]))) lastOfMonth.set(match[1], tag);
+  }
+  const months = [...lastOfMonth.keys()].sort().reverse();
+  return months.slice(1).map((month) => lastOfMonth.get(month));
+}
+
+// 在 checksums.sha256 中找指定 FFmpeg 版本、平台和变体的资产。
+export function findBtbnAsset(checksums, version, { target, variant, ext }) {
+  for (const line of checksums.split('\n')) {
+    const [sha256, name] = line.trim().split(/\s+\*?/);
+    const asset = name && parseBtbnAsset(name);
+    if (asset && asset.version === version && asset.target === target && asset.variant === variant && asset.ext === ext) {
+      return { name, sha256: sha256.toLowerCase(), ...asset };
+    }
+  }
+  return null;
+}
+
 // 两格缩进的 JSON；只含基本类型、且一行放得下的数组写成一行，与手写的 sources.json 格式一致。
 export function formatJson(value, width = 80) {
   const text = JSON.stringify(value, null, 2).replace(/^( *)("[^"\n]*": )?\[\n([\s\S]*?)\n\1\]/gm, (whole, indent, key = '', body) => {
