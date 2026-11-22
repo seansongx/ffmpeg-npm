@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -36,8 +36,9 @@ async function install({ withPlatformPackage }) {
     const platformDir = join(dir, 'node_modules', '@seankit', `ffmpeg-${hostKey}`);
     await mkdir(join(platformDir, 'bin'), { recursive: true });
     await writeFile(join(platformDir, 'package.json'), JSON.stringify({ name: `@seankit/ffmpeg-${hostKey}`, version: '9.1.0' }));
-    binary = join(platformDir, 'bin', binaryName);
-    await writeFile(binary, 'fake');
+    await writeFile(join(platformDir, 'bin', binaryName), 'fake');
+    // require.resolve 返回真实路径；macOS 的临时目录 /var 是 /private/var 的链接。
+    binary = await realpath(join(platformDir, 'bin', binaryName));
   }
   return { require: createRequire(join(dir, 'app.js')), main, binary };
 }

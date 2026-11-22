@@ -122,10 +122,17 @@ async function findFile(dir, name) {
 // 不运行二进制，直接从文件内容读出许可证和编译选项，并确认必需的编译选项都在。
 async function inspectBinary(file) {
   const text = (await readFile(file)).toString('latin1');
-  const license = detectLicense(text);
+  const configuration = extractConfiguration(text);
+  const fail = (message) => new Error(`${message}\n  编译选项：${configuration || '未找到'}`);
+  let license;
+  try {
+    license = detectLicense(text);
+  } catch (error) {
+    throw fail(error.message);
+  }
   const missing = config.requiredConfigure.filter((flag) => !text.includes(flag));
-  if (missing.length) throw new Error(`缺少必需的编译选项：${missing.join(' ')}`);
-  return { license, configuration: extractConfiguration(text) };
+  if (missing.length) throw fail(`缺少必需的编译选项：${missing.join(' ')}`);
+  return { license, configuration };
 }
 
 async function licenseText(spdx) {

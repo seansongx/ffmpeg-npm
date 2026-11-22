@@ -6,9 +6,19 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 发布到 npm（需要仓库密钥 NPM_TOKEN）
+        description: 发布到 npm（需要仓库密钥 NPM_TOKEN；须打包全部工具和平台）
         type: boolean
         default: false
+      tool:
+        description: 只打包某个工具
+        type: choice
+        default: all
+        options: [all, ffmpeg, ffprobe]
+      platform:
+        description: 只打包某个平台
+        type: choice
+        default: all
+        options: [all, win32-x64, darwin-arm64, darwin-x64, linux-x64, linux-arm64]
 
 permissions:
   contents: read
@@ -37,7 +47,19 @@ jobs:
         run: npm test
 
       - name: 下载上游构建并打包
-        run: npm run pack
+        env:
+          PUBLISH: ${{ inputs.publish }}
+          TOOL: ${{ inputs.tool }}
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          if [ "$PUBLISH" = "true" ] && { [ "$TOOL" != "all" ] || [ "$PLATFORM" != "all" ]; }; then
+            echo "::error::发布时必须打包全部工具和平台"
+            exit 1
+          fi
+          args=()
+          [ "$TOOL" != "all" ] && args+=(--tool "$TOOL")
+          [ "$PLATFORM" != "all" ] && args+=(--platform "$PLATFORM")
+          node scripts/pack.mjs pack "${args[@]}"
 
       - name: 写入运行摘要
         run: |
