@@ -1,0 +1,128 @@
+{
+  "ffmpegVersion": "9.1",
+  "packageVersion": "9.1.0",
+  "scope": "@seankit",
+  "repository": "https://github.com/xsong13/ffmpeg-npm",
+  "tools": ["ffmpeg", "ffprobe"],
+  "registries": [
+    "https://registry.npmmirror.com",
+    "https://registry.npmjs.org"
+  ],
+  "licenseBaseUrl": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n9.1/",
+  "sourceTarball": "https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz",
+  "requiredConfigure": [
+    "--enable-gpl",
+    "--enable-libx264",
+    "--enable-libmp3lame"
+  ],
+  "aliases": {
+    "win32-arm64": "win32-x64"
+  },
+  "platforms": {
+    "win32-x64": {
+      "os": "win32",
+      "cpu": ["x64", "arm64"],
+      "rustTargets": ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"],
+      "upstream": {
+        "ffmpeg": {
+          "provider": "gyan.dev",
+          "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.1-essentials_build.7z",
+          "sha256": "835b9a733445ba7a56a37a26cf7bde84e2f3ce7da2a8ec984276bb2abb1b922c",
+          "size": 36671021,
+          "buildInfo": "https://www.gyan.dev/ffmpeg/builds/"
+        },
+        "ffprobe": {
+          "provider": "gyan.dev",
+          "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.1-essentials_build.7z",
+          "sha256": "835b9a733445ba7a56a37a26cf7bde84e2f3ce7da2a8ec984276bb2abb1b922c",
+          "size": 36671021,
+          "buildInfo": "https://www.gyan.dev/ffmpeg/builds/"
+        }
+      }
+    },
+    "darwin-arm64": {
+      "os": "darwin",
+      "cpu": ["arm64"],
+      "rustTargets": ["aarch64-apple-darwin"],
+      "upstream": {
+        "ffmpeg": {
+          "provider": "ffmpeg.martin-riedl.de",
+          "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1795207104_9.1/ffmpeg.zip",
+          "sha256": "1f66e9a690a7f1c9e60b012379f8869c11818d1797f45b21dbb2f2564ba61ae1",
+          "size": 28623086,
+          "buildInfo": "https://git.martin-riedl.de/ffmpeg/build-script"
+        },
+        "ffprobe": {
+          "provider": "ffmpeg.martin-riedl.de",
+          "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1795207104_9.1/ffprobe.zip",
+          "sha256": "6ef2df5f575042923a28537ab37adf936f28bf3e7b85de23a1447ed447ec1dbd",
+          "size": 28541295,
+          "buildInfo": "https://git.martin-riedl.de/ffmpeg/build-script"
+        }
+      }
+    },
+    "darwin-x64": {
+      "os": "darwin",
+      "cpu": ["x64"],
+      "rustTargets": ["x86_64-apple-darwin"],
+      "upstream": {
+        "ffmpeg": {
+          "provider": "ffmpeg.martin-riedl.de",
+          "url": "https://ffmpeg.martin-riedl.de/download/macos/amd64/1795212433_9.1/ffmpeg.zip",
+          "sha256": "35b3d82cccc2c1d644d49d15f5e57eb913a08ef68f798042c90eecec62c51f1e",
+          "size": 34064287,
+          "buildInfo": "https://git.martin-riedl.de/ffmpeg/build-script"
+        },
+        "ffprobe": {
+          "provider": "ffmpeg.martin-riedl.de",
+          "url": "https://ffmpeg.martin-riedl.de/download/macos/amd64/1795212433_9.1/ffprobe.zip",
+          "sha256": "41ca7b7cba7992e33f1da3f1bf54db8ec103a4d387b1bfac3162062e8b1074ad",
+          "size": 33959464,
+          "buildInfo": "https://git.martin-riedl.de/ffmpeg/build-script"
+        }
+      }
+    },
+    "linux-x64": {
+      "os": "linux",
+      "cpu": ["x64"],
+      "rustTargets": ["x86_64-unknown-linux-gnu"],
+      "upstream": {
+        "ffmpeg": {
+          "provider": "ffmpeg.martin-riedl.de",
+          "url": "https://ffmpeg.martin-riedl.de/download/linux/amd64/1795205506_9.1/ffmpeg.zip",
+          "sha256": "707d4fa675932cc310e39e1506ac9224049786119689e345fed1c453a8a0896e",
+          "size": 33573944,
+          "buildInfo": "https://git.martin-riedl.de/ffmpeg/build-script"
+        },
+        "ffprobe": {
+          "provider": "ffmpeg.martin-riedl.de",
+          "url": "https://ffmpeg.martin-riedl.de/download/linux/amd64/1795205506_9.1/ffprobe.zip",
+          "sha256": "5e4c53c9c86d6371027efa83d62c2cea00e02ded0234d8cc952d06c9259e4b33",
+          "size": 33467313,
+          "buildInfo": "https://git.martin-riedl.de/ffmpeg/build-script"
+        }
+      }
+    },
+    "linux-arm64": {
+      "os": "linux",
+      "cpu": ["arm64"],
+      "rustTargets": ["aarch64-unknown-linux-gnu"],
+      "upstream": {
+        "ffmpeg": {
+          "provider": "ffmpeg.martin-riedl.de",
+          "url": "https://ffmpeg.martin-riedl.de/download/linux/arm64/1795204341_9.1/ffmpeg.zip",
+          "sha256": "e42242dd20b01cf9fe6cff1902b6e5e72be07c2b551d95abc8f332cdb0ff7d86",
+          "size": 29002466,
+          "buildInfo": "https://git.martin-riedl.de/ffmpeg/build-script"
+        },
+        "ffprobe": {
+          "provider": "ffmpeg.martin-riedl.de",
+          "url": "https://ffmpeg.martin-riedl.de/download/linux/arm64/1795204341_9.1/ffprobe.zip",
+          "sha256": "a1561aa2136bce9f51dac9b13be4480466a3031f82907d551619dcdc3b867ccc",
+          "size": 28892361,
+          "buildInfo": "https://git.martin-riedl.de/ffmpeg/build-script"
+        }
+      }
+    }
+  }
+}
