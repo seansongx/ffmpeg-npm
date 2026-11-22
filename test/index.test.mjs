@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -37,8 +38,9 @@ async function install({ withPlatformPackage }) {
     await mkdir(join(platformDir, 'bin'), { recursive: true });
     await writeFile(join(platformDir, 'package.json'), JSON.stringify({ name: `@seankit/ffmpeg-${hostKey}`, version: '9.1.0' }));
     await writeFile(join(platformDir, 'bin', binaryName), 'fake');
-    // require.resolve 返回真实路径；macOS 的临时目录 /var 是 /private/var 的链接。
-    binary = await realpath(join(platformDir, 'bin', binaryName));
+    // require.resolve 用 fs.realpathSync 取真实路径：macOS 的 /var 会解析成 /private/var，
+    // Windows 的 8.3 短路径（如 RUNNER~1）则保持不变，所以这里用同一个函数比较。
+    binary = realpathSync(join(platformDir, 'bin', binaryName));
   }
   return { require: createRequire(join(dir, 'app.js')), main, binary };
 }
