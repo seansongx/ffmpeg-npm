@@ -1,0 +1,72 @@
+name: Release
+
+# 手动运行：下载上游构建、打包，并可选择发布到 npm。
+# 不勾选“发布”时只打包，生成的 tarball 可在本次运行的产物 npm-packages 中下载检查。
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 发布到 npm（需要仓库密钥 NPM_TOKEN）
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: 安装 bsdtar
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libarchive-tools
+
+      - name: 测试
+        run: npm test
+
+      - name: 下载上游构建并打包
+        run: npm run pack
+
+      - name: 写入运行摘要
+        run: |
+          node -e '
+            const release = require("./dist/release.json");
+            const rows = release.tarballs.map((t) => `| ${t.package} | ${t.version} | ${(t.size / 1048576).toFixed(1)} MiB | \`${t.sha256}\` |`);
+            console.log(["| 包 | 版本 | 大小 | SHA-256 |", "| --- | --- | --- | --- |", ...rows].join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-packages
+          path: dist/
+          retention-days: 14
+
+      - name: 发布到 npm
+        if: inputs.publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/publish.mjs publish
+
+      - name: 让 npmmirror 立即同步
+        if: inputs.publish
+        run: npx --yes cnpm sync $(node -p 'require("./dist/release.json").tarballs.map((t) => t.package).join(" ")')
+
+      - name: 等待 npmmirror 同步完成
+        if: inputs.publish
+        run: node scripts/publish.mjs wait-mirror
+
+      - name: 核对 npmmirror 与 npmjs 上的文件
+        if: inputs.publish
+        run: npm run verify

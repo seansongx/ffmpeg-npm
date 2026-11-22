@@ -27,13 +27,23 @@
 
 ## 发布流程
 
+在 GitHub Actions 中发布：上游文件和 npm 都在境外，在 GitHub 的服务器上下载和上传快得多。
+
+1. 首次使用前，在 npmjs.com 为 `@seankit` 创建有发布权限的访问令牌，添加为仓库密钥 `NPM_TOKEN`（Settings → Secrets and variables → Actions）。
+2. 在 Actions 页面运行 **Release**，先不勾选“发布到 npm”：工作流会跑测试、下载并校验上游文件、生成 tarball。运行摘要列出每个包的大小和 SHA-256，产物 `npm-packages` 可下载检查。
+3. 再次运行 **Release** 并勾选“发布到 npm”：按 `release.json` 的顺序先发平台包、再发主包（已发布的版本自动跳过），附带来源证明（provenance）；随后让 npmmirror 立即同步，等同步完成后从 npmmirror 和 npmjs 分别下载每个 tarball，核对与 `release.json` 一致。
+
+每次推送到 `main` 时，**Test** 工作流会在 Windows、macOS 和 Linux 上运行测试。
+
+### 在本机运行
+
 需要 Node.js 20.12+、curl，以及 bsdtar（Windows 10+ 和 macOS 自带）或 unzip 与 7z。
 
-1. `npm run plan`：查看要下载的上游文件，不联网。
-2. `npm run pack`：下载并校验上游文件，生成 `dist/*.tgz`、`dist/ffmpeg.manifest.json`、`dist/ffprobe.manifest.json` 和 `dist/release.json`。可加 `-- --tool ffmpeg` 或 `-- --platform win32-x64` 只处理一部分；主包在该工具所有平台都生成后才会生成。
-3. `npm login` 后按脚本输出逐个 `npm publish <tgz> --access public`，先发平台包，再发主包。发布的就是第 2 步算过哈希的文件。
-4. `npx --yes cnpm sync <包名...>`：让 npmmirror 立即同步。
-5. `npm run verify`：从 npmmirror 和 npmjs 分别下载每个 tarball，核对与 `release.json` 一致。
+- `npm run plan`：查看要下载的上游文件，不联网。
+- `npm run pack`：下载并校验上游文件，生成 `dist/*.tgz`、`dist/ffmpeg.manifest.json`、`dist/ffprobe.manifest.json` 和 `dist/release.json`。可加 `-- --tool ffmpeg` 或 `-- --platform win32-x64` 只处理一部分；主包在该工具所有平台都生成后才会生成。
+- `npm login` 后 `node scripts/publish.mjs publish`：按顺序发布，发布的就是上一步算过哈希的文件。
+- `npx --yes cnpm sync <包名...>` 和 `node scripts/publish.mjs wait-mirror`：让 npmmirror 同步并等待完成。
+- `npm run verify`：从 npmmirror 和 npmjs 分别下载每个 tarball 并核对。
 
 下载缓存在 `.cache/`，中间文件在 `.work/`，输出在 `dist/`，均不提交。
 
